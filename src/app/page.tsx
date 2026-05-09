@@ -93,7 +93,7 @@ export default function Home() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "http://localhost:3000",
+        redirectTo: "https://sonsuza-kadar-sen-ve-ben.vercel.app",
         queryParams: { prompt: "select_account" },
       },
     });
