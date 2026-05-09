@@ -12,23 +12,23 @@ const ADMIN_EMAIL = "kartalmalatya8@gmail.com";
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
-  const [hikaye, setHikaye] = useState<any>(null);
-  const [anilar, setAnilar] = useState<any[]>([]);
-  const [fotograflar, setFotograflar] = useState<any[]>([]);
-  const [silinenAnilar, setSilinenAnilar] = useState<any[]>([]);
-  const [silinenFotograflar, setSilinenFotograflar] = useState<any[]>([]);
   const [mesajlar, setMesajlar] = useState<any[]>([]);
-
-  const [baslik, setBaslik] = useState("");
-  const [aciklama, setAciklama] = useState("");
-  const [fotoAciklama, setFotoAciklama] = useState("");
-  const [seciliFoto, setSeciliFoto] = useState<File | null>(null);
-  const [yukleniyor, setYukleniyor] = useState(false);
-  const [muzikCaliyor, setMuzikCaliyor] = useState(false);
-  const [mektupAcik, setMektupAcik] = useState(false);
   const [yeniMesaj, setYeniMesaj] = useState("");
 
-  const [gecenZaman, setGecenZaman] = useState({
+  const [anilar, setAnilar] = useState<any[]>([]);
+  const [silinenAnilar, setSilinenAnilar] = useState<any[]>([]);
+  const [baslik, setBaslik] = useState("");
+  const [aciklama, setAciklama] = useState("");
+
+  const [fotograflar, setFotograflar] = useState<any[]>([]);
+  const [silinenFotograflar, setSilinenFotograflar] = useState<any[]>([]);
+  const [seciliFoto, setSeciliFoto] = useState<File | null>(null);
+  const [fotoAciklama, setFotoAciklama] = useState("");
+
+  const [muzikCaliyor, setMuzikCaliyor] = useState(false);
+  const [mektupAcik, setMektupAcik] = useState(false);
+
+  const [time, setTime] = useState({
     gun: 0,
     saat: 0,
     dakika: 0,
@@ -38,12 +38,26 @@ export default function Home() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isAdmin = user?.email === ADMIN_EMAIL;
 
+  const hearts = Array.from({ length: 35 });
+
   useEffect(() => {
     checkUser();
-    getStory();
+    getMesajlar();
     getAnilar();
     getFotograflar();
-    getMesajlar();
+
+    const timer = setInterval(() => {
+      const start = new Date("2026-04-08T00:00:00").getTime();
+      const now = new Date().getTime();
+      const diff = now - start;
+
+      setTime({
+        gun: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        saat: Math.floor((diff / (1000 * 60 * 60)) % 24),
+        dakika: Math.floor((diff / (1000 * 60)) % 60),
+        saniye: Math.floor((diff / 1000) % 60),
+      });
+    }, 1000);
 
     const channel = supabase
       .channel("mesajlar-realtime")
@@ -53,19 +67,6 @@ export default function Home() {
         () => getMesajlar()
       )
       .subscribe();
-
-    const timer = setInterval(() => {
-      const baslangic = new Date("2026-04-08T00:00:00").getTime();
-      const simdi = new Date().getTime();
-      const fark = simdi - baslangic;
-
-      setGecenZaman({
-        gun: Math.floor(fark / (1000 * 60 * 60 * 24)),
-        saat: Math.floor((fark / (1000 * 60 * 60)) % 24),
-        dakika: Math.floor((fark / (1000 * 60)) % 60),
-        saniye: Math.floor((fark / 1000) % 60),
-      });
-    }, 1000);
 
     return () => {
       clearInterval(timer);
@@ -81,11 +82,14 @@ export default function Home() {
   }, [user]);
 
   async function checkUser() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
     if (session) setUser(session.user);
   }
 
-  async function signInWithGoogle() {
+  async function signIn() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -97,32 +101,7 @@ export default function Home() {
 
   async function signOut() {
     await supabase.auth.signOut();
-    setUser(null);
-  }
-
-  async function getStory() {
-    const { data } = await supabase.from("hikayeler").select("*").single();
-    setHikaye(data);
-  }
-
-  async function getAnilar() {
-    const { data } = await supabase
-      .from("anilar")
-      .select("*")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-
-    if (data) setAnilar(data);
-  }
-
-  async function getFotograflar() {
-    const { data } = await supabase
-      .from("fotograflar")
-      .select("*")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-
-    if (data) setFotograflar(data);
+    location.reload();
   }
 
   async function getMesajlar() {
@@ -137,33 +116,27 @@ export default function Home() {
   async function sendMesaj() {
     if (!yeniMesaj.trim()) return;
 
-    const { error } = await supabase.from("mesajlar").insert({
+    await supabase.from("mesajlar").insert({
       user_email: user.email,
       mesaj: yeniMesaj,
     });
 
-    if (error) {
-      alert("Mesaj gönderilemedi: " + error.message);
-      return;
-    }
-
     setYeniMesaj("");
   }
 
-  async function deleteMesaj(mesaj: any) {
-    if (!confirm("Bu mesajı silmek istediğine emin misin?")) return;
-
-    const { error } = await supabase
-      .from("mesajlar")
-      .delete()
-      .eq("id", mesaj.id);
-
-    if (error) {
-      alert("Mesaj silinemedi: " + error.message);
-      return;
-    }
-
+  async function deleteMesaj(id: number) {
+    await supabase.from("mesajlar").delete().eq("id", id);
     getMesajlar();
+  }
+
+  async function getAnilar() {
+    const { data } = await supabase
+      .from("anilar")
+      .select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+
+    if (data) setAnilar(data);
   }
 
   async function getSilinenAnilar() {
@@ -176,6 +149,56 @@ export default function Home() {
     if (data) setSilinenAnilar(data);
   }
 
+  async function addAni() {
+    if (!baslik.trim() || !aciklama.trim()) return;
+
+    await supabase.from("anilar").insert({
+      baslik,
+      aciklama,
+      user_email: user.email,
+    });
+
+    setBaslik("");
+    setAciklama("");
+    getAnilar();
+  }
+
+  async function deleteAni(ani: any) {
+    await supabase
+      .from("anilar")
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user.email,
+      })
+      .eq("id", ani.id);
+
+    getAnilar();
+    if (isAdmin) getSilinenAnilar();
+  }
+
+  async function geriYukleAni(ani: any) {
+    await supabase
+      .from("anilar")
+      .update({
+        deleted_at: null,
+        deleted_by: null,
+      })
+      .eq("id", ani.id);
+
+    getAnilar();
+    getSilinenAnilar();
+  }
+
+  async function getFotograflar() {
+    const { data } = await supabase
+      .from("fotograflar")
+      .select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+
+    if (data) setFotograflar(data);
+  }
+
   async function getSilinenFotograflar() {
     const { data } = await supabase
       .from("fotograflar")
@@ -186,73 +209,30 @@ export default function Home() {
     if (data) setSilinenFotograflar(data);
   }
 
-  async function addAni() {
-    if (!baslik.trim() || !aciklama.trim()) {
-      alert("Başlık ve açıklama yazmalısın ❤️");
-      return;
-    }
-
-    const { error } = await supabase.from("anilar").insert({
-      user_email: user.email,
-      baslik,
-      aciklama,
-    });
-
-    if (error) {
-      alert("Anı eklenemedi: " + error.message);
-      return;
-    }
-
-    setBaslik("");
-    setAciklama("");
-    getAnilar();
-  }
-
   async function uploadFoto() {
-    if (!seciliFoto) {
-      alert("Önce bir fotoğraf seçmelisin ❤️");
-      return;
-    }
+    if (!seciliFoto) return;
 
-    setYukleniyor(true);
-    const dosyaAdi = `${Date.now()}-${seciliFoto.name}`;
+    const fileName = `${Date.now()}-${seciliFoto.name}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("fotograflar")
-      .upload(dosyaAdi, seciliFoto);
-
-    if (uploadError) {
-      setYukleniyor(false);
-      alert("Fotoğraf yüklenemedi: " + uploadError.message);
-      return;
-    }
+    await supabase.storage.from("fotograflar").upload(fileName, seciliFoto);
 
     const { data } = supabase.storage
       .from("fotograflar")
-      .getPublicUrl(dosyaAdi);
+      .getPublicUrl(fileName);
 
-    const { error: dbError } = await supabase.from("fotograflar").insert({
-      user_email: user.email,
+    await supabase.from("fotograflar").insert({
       image_url: data.publicUrl,
       aciklama: fotoAciklama,
+      user_email: user.email,
     });
 
-    if (dbError) {
-      setYukleniyor(false);
-      alert("Fotoğraf kaydedilemedi: " + dbError.message);
-      return;
-    }
-
-    setSeciliFoto(null);
     setFotoAciklama("");
-    setYukleniyor(false);
+    setSeciliFoto(null);
     getFotograflar();
   }
 
   async function deleteFoto(foto: any) {
-    if (!confirm("Bu fotoğrafı silmek istediğine emin misin?")) return;
-
-    const { error } = await supabase
+    await supabase
       .from("fotograflar")
       .update({
         deleted_at: new Date().toISOString(),
@@ -260,56 +240,24 @@ export default function Home() {
       })
       .eq("id", foto.id);
 
-    if (error) {
-      alert("Fotoğraf silinemedi: " + error.message);
-      return;
-    }
-
     getFotograflar();
     if (isAdmin) getSilinenFotograflar();
-  }
-
-  async function deleteAni(ani: any) {
-    if (!confirm("Bu anıyı silmek istediğine emin misin?")) return;
-
-    const { error } = await supabase
-      .from("anilar")
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: user.email,
-      })
-      .eq("id", ani.id);
-
-    if (error) {
-      alert("Anı silinemedi: " + error.message);
-      return;
-    }
-
-    getAnilar();
-    if (isAdmin) getSilinenAnilar();
-  }
-
-  async function geriYukleAni(ani: any) {
-    await supabase
-      .from("anilar")
-      .update({ deleted_at: null, deleted_by: null })
-      .eq("id", ani.id);
-
-    getAnilar();
-    getSilinenAnilar();
   }
 
   async function geriYukleFoto(foto: any) {
     await supabase
       .from("fotograflar")
-      .update({ deleted_at: null, deleted_by: null })
+      .update({
+        deleted_at: null,
+        deleted_by: null,
+      })
       .eq("id", foto.id);
 
     getFotograflar();
     getSilinenFotograflar();
   }
 
-  function toggleMuzik() {
+  function toggleMusic() {
     if (!audioRef.current) return;
 
     if (muzikCaliyor) {
@@ -323,116 +271,104 @@ export default function Home() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-6">
-        <h1 className="text-5xl md:text-7xl font-bold text-red-500">
-          Sonsuza Kadar
-        </h1>
+      <main className="relative min-h-screen overflow-hidden bg-black text-white flex items-center justify-center px-6">
+        <Background hearts={hearts} />
 
-        <h2 className="text-4xl md:text-6xl font-semibold mt-4">
-          Sen ve Ben
-        </h2>
+        <div className="relative z-10 text-center">
+          <h1 className="text-5xl md:text-7xl font-black text-red-500 drop-shadow-[0_0_25px_rgba(255,0,70,0.8)]">
+            Sonsuza Kadar
+          </h1>
 
-        <button
-          onClick={signInWithGoogle}
-          className="mt-10 bg-red-600 hover:bg-red-700 px-8 py-4 rounded-2xl text-xl font-semibold"
-        >
-          Google ile Giriş Yap ❤️
-        </button>
+          <h2 className="mt-4 text-4xl md:text-6xl font-extrabold">
+            Sen ve Ben
+          </h2>
+
+          <button
+            onClick={signIn}
+            className="mt-10 rounded-2xl bg-red-600 px-8 py-4 text-xl font-bold hover:bg-red-700 shadow-[0_0_30px_rgba(255,0,70,0.5)]"
+          >
+            Google ile Giriş Yap ❤️
+          </button>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-black text-white px-6 py-16">
+    <main className="relative min-h-screen overflow-hidden bg-black text-white px-5 py-10">
       <audio ref={audioRef} src="/kisa-mesafe.mp3" loop />
+      <Background hearts={hearts} />
 
-      <section className="max-w-6xl mx-auto text-center relative">
-        <button
-          onClick={signOut}
-          className="absolute right-0 top-0 border border-red-500 px-5 py-3 rounded-xl text-red-300"
-        >
-          Çıkış Yap
-        </button>
+      <button
+        onClick={signOut}
+        className="fixed right-6 top-6 z-30 rounded-xl border border-red-500 px-5 py-2 text-red-200 bg-black/70 hover:bg-red-700"
+      >
+        Çıkış Yap
+      </button>
 
-        <h1 className="text-5xl md:text-7xl font-bold text-red-500">
+      <section className="relative z-10 mx-auto max-w-6xl text-center">
+        <h1 className="text-5xl md:text-7xl font-black text-red-500 drop-shadow-[0_0_25px_rgba(255,0,70,0.8)]">
           Sonsuza Kadar
         </h1>
 
-        <h2 className="text-4xl md:text-6xl font-semibold mt-4">
+        <h2 className="mt-3 text-4xl md:text-6xl font-extrabold">
           Sen ve Ben
         </h2>
 
-        <p className="mt-8 text-gray-300">Hoş geldin, {user.email}</p>
+        <p className="mt-6 text-gray-300">Hoş geldin, {user.email}</p>
 
         {isAdmin && (
-          <p className="mt-3 text-yellow-400 font-bold">
-            Admin paneli aktif 👑
-          </p>
+          <p className="mt-2 font-bold text-yellow-400">Admin paneli aktif 👑</p>
         )}
 
-        <button
-          onClick={toggleMuzik}
-          className="mt-8 bg-red-600 hover:bg-red-700 px-8 py-4 rounded-2xl text-xl font-semibold"
-        >
-          {muzikCaliyor ? "Müziği Durdur 🎵" : "Kısa Mesafe Çal 🎵"}
-        </button>
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <button
+            onClick={toggleMusic}
+            className="rounded-2xl bg-red-600 px-8 py-4 text-xl font-bold hover:bg-red-700 shadow-[0_0_30px_rgba(255,0,70,0.5)]"
+          >
+            {muzikCaliyor ? "Müziği Durdur 🎵" : "Kısa Mesafe Çal 🎵"}
+          </button>
 
-        <div className="mt-8">
           <button
             onClick={() => setMektupAcik(!mektupAcik)}
-            className="border border-red-500 hover:bg-red-950/40 px-8 py-4 rounded-2xl text-xl font-semibold text-red-300"
+            className="rounded-2xl border border-red-500 px-8 py-4 text-xl font-bold hover:bg-red-900/60"
           >
             {mektupAcik ? "Gizli Mektubu Kapat 💌" : "Gizli Mektubu Aç 💌"}
           </button>
         </div>
 
         {mektupAcik && (
-          <div className="mt-8 border border-red-500 rounded-3xl p-8 bg-red-950/30 text-left max-w-3xl mx-auto">
-            <h2 className="text-red-400 text-3xl font-bold mb-5 text-center">
+          <div className="mx-auto mt-8 max-w-3xl rounded-3xl border border-red-500 bg-red-950/40 p-8 text-left">
+            <h2 className="mb-5 text-center text-3xl font-bold text-red-400">
               Sana Gizli Mektubum 💌
             </h2>
-            <p className="text-gray-200 text-lg leading-8">
-              Sen benim en güzel tesadüfüm, en özel hikayemsin. Bu siteyi bizim
-              anılarımız burada yaşasın diye yapıyorum. Her fotoğraf, her anı,
-              her saniye bizim için saklı kalsın istiyorum. İyi ki varsın. ❤️
+            <p className="text-lg leading-8 text-gray-200">
+              Sen benim en güzel tesadüfümsün. Bu siteyi sadece bir proje değil,
+              bizim anılarımız sonsuza kadar yaşasın diye yaptım. Her fotoğraf,
+              her anı ve her mesaj burada bizim küçük dünyamız olarak kalacak. ❤️
             </p>
           </div>
         )}
 
-        <div className="mt-14 border border-red-500 rounded-3xl p-8 bg-red-950/20">
-          <h2 className="text-red-400 text-3xl font-bold mb-6">
+        <div className="mt-12 rounded-[32px] border border-red-500/70 bg-red-950/30 p-6 md:p-10 shadow-[0_0_45px_rgba(255,0,70,0.2)]">
+          <h2 className="mb-8 text-3xl md:text-5xl font-black text-red-400">
             Birlikte Geçen Zaman ⏳
           </h2>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="border border-red-500 rounded-2xl p-5">
-              <p className="text-4xl font-bold text-red-400">{gecenZaman.gun}</p>
-              <p>Gün</p>
-            </div>
-
-            <div className="border border-red-500 rounded-2xl p-5">
-              <p className="text-4xl font-bold text-red-400">{gecenZaman.saat}</p>
-              <p>Saat</p>
-            </div>
-
-            <div className="border border-red-500 rounded-2xl p-5">
-              <p className="text-4xl font-bold text-red-400">{gecenZaman.dakika}</p>
-              <p>Dakika</p>
-            </div>
-
-            <div className="border border-red-500 rounded-2xl p-5">
-              <p className="text-4xl font-bold text-red-400">{gecenZaman.saniye}</p>
-              <p>Saniye</p>
-            </div>
+            <TimeCard value={time.gun} label="Gün" />
+            <TimeCard value={time.saat} label="Saat" />
+            <TimeCard value={time.dakika} label="Dakika" />
+            <TimeCard value={time.saniye} label="Saniye" />
           </div>
         </div>
 
-        <div className="mt-16 border border-red-500 rounded-3xl p-8 bg-red-950/20">
-          <h2 className="text-red-400 text-3xl font-bold mb-6">
+        <div className="mt-12 rounded-3xl border border-red-500 bg-red-950/30 p-6 md:p-8">
+          <h2 className="mb-6 text-3xl font-black text-red-400">
             Özel Sohbet 💬
           </h2>
 
-          <div className="h-[350px] overflow-y-auto border border-red-900 rounded-2xl p-5 bg-black/40 text-left space-y-4">
+          <div className="h-[330px] overflow-y-auto rounded-2xl border border-red-900 bg-black/40 p-5 text-left space-y-4">
             {mesajlar.map((m) => {
               const benim = m.user_email === user.email;
 
@@ -442,17 +378,21 @@ export default function Home() {
                   className={`flex ${benim ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[75%] rounded-2xl px-5 py-3 ${
-                      benim ? "bg-red-600" : "bg-red-950 border border-red-500"
+                    className={`max-w-[80%] rounded-2xl px-5 py-3 ${
+                      benim
+                        ? "bg-red-600"
+                        : "border border-red-500 bg-red-950"
                     }`}
                   >
                     <p>{m.mesaj}</p>
-                    <p className="mt-2 text-xs text-gray-300">{m.user_email}</p>
+                    <p className="mt-2 text-xs text-gray-300">
+                      {m.user_email}
+                    </p>
 
                     {benim && (
                       <button
-                        onClick={() => deleteMesaj(m)}
-                        className="mt-2 text-xs underline text-white/80 hover:text-white"
+                        onClick={() => deleteMesaj(m.id)}
+                        className="mt-2 text-xs underline"
                       >
                         Mesajı Sil
                       </button>
@@ -471,94 +411,80 @@ export default function Home() {
                 if (e.key === "Enter") sendMesaj();
               }}
               placeholder="Mesaj yaz..."
-              className="flex-1 p-4 rounded-xl bg-black border border-red-500 text-white outline-none"
+              className="flex-1 rounded-xl border border-red-500 bg-black p-4 outline-none"
             />
 
             <button
               onClick={sendMesaj}
-              className="bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-semibold"
+              className="rounded-xl bg-red-600 px-6 font-bold hover:bg-red-700"
             >
               Gönder
             </button>
           </div>
         </div>
 
-        {hikaye && (
-          <div className="mt-14 border border-red-500 rounded-3xl p-8 bg-red-950/20">
-            <h2 className="text-red-400 text-2xl font-bold mb-4">
-              {hikaye.baslik}
-            </h2>
-            <p className="text-xl">{hikaye.aciklama}</p>
-          </div>
-        )}
-
-        <div className="mt-16">
-          <h2 className="text-red-400 text-3xl font-bold mb-8">
-            Başlangıç Fotoğraflarımız
+        <div className="mt-12">
+          <h2 className="mb-8 text-4xl font-black text-red-400">
+            Başlangıç Fotoğraflarımız ❤️
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <img src="/girl1.jpg" className="w-full h-[400px] object-cover rounded-3xl border border-red-500" />
-            <img src="/girl2.jpg" className="w-full h-[400px] object-cover rounded-3xl border border-red-500" />
-            <img src="/me.jpg" className="w-full h-[400px] object-cover rounded-3xl border border-red-500" />
+            <img src="/girl1.jpg" className="h-[390px] w-full rounded-3xl border border-red-500 object-cover" />
+            <img src="/girl2.jpg" className="h-[390px] w-full rounded-3xl border border-red-500 object-cover" />
+            <img src="/me.jpg" className="h-[390px] w-full rounded-3xl border border-red-500 object-cover" />
           </div>
         </div>
 
-        <div className="mt-16 border border-red-500 rounded-3xl p-8 bg-red-950/20">
-          <h2 className="text-red-400 text-3xl font-bold mb-6">
-            Yeni Fotoğraf Ekle 📸
+        <div className="mt-12 rounded-3xl border border-red-500 bg-red-950/30 p-8">
+          <h2 className="mb-6 text-3xl font-black text-red-400">
+            Fotoğraf Yükle 📸
           </h2>
 
           <input
             type="file"
             accept="image/*"
             onChange={(e) => setSeciliFoto(e.target.files?.[0] || null)}
-            className="w-full mb-4 p-4 rounded-xl bg-black border border-red-500 text-white"
+            className="mb-4 w-full rounded-xl border border-red-500 bg-black p-4"
           />
 
           <input
             value={fotoAciklama}
             onChange={(e) => setFotoAciklama(e.target.value)}
             placeholder="Fotoğraf açıklaması"
-            className="w-full mb-4 p-4 rounded-xl bg-black border border-red-500 text-white outline-none"
+            className="mb-4 w-full rounded-xl border border-red-500 bg-black p-4 outline-none"
           />
 
           <button
             onClick={uploadFoto}
-            disabled={yukleniyor}
-            className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-2xl text-xl font-semibold disabled:opacity-50"
+            className="rounded-xl bg-red-600 px-8 py-4 font-bold hover:bg-red-700"
           >
-            {yukleniyor ? "Yükleniyor..." : "Fotoğrafı Kaydet"}
+            Fotoğrafı Kaydet
           </button>
         </div>
 
-        <div className="mt-16">
-          <h2 className="text-red-400 text-3xl font-bold mb-8">
-            Yüklenen Fotoğraflarımız
+        <div className="mt-12">
+          <h2 className="mb-8 text-4xl font-black text-red-400">
+            Fotoğraflarımız 📸
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {fotograflar.map((foto) => (
               <div
                 key={foto.id}
-                className="border border-red-500 rounded-3xl overflow-hidden bg-red-950/20"
+                className="overflow-hidden rounded-3xl border border-red-500 bg-red-950/30"
               >
                 <img
                   src={foto.image_url}
-                  className="w-full h-[400px] object-cover"
+                  className="h-[390px] w-full object-cover"
                 />
 
                 <div className="p-5 text-left">
-                  <p className="text-gray-200">{foto.aciklama}</p>
-                  <p className="mt-3 text-sm text-gray-500">
-                    {foto.user_email}
-                  </p>
-
+                  <p>{foto.aciklama}</p>
                   <button
                     onClick={() => deleteFoto(foto)}
-                    className="mt-4 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl"
+                    className="mt-4 rounded-xl bg-red-600 px-4 py-2 hover:bg-red-700"
                   >
-                    Fotoğrafı Sil 🗑
+                    Fotoğrafı Sil
                   </button>
                 </div>
               </div>
@@ -566,53 +492,55 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mt-16 border border-red-500 rounded-3xl p-8 bg-red-950/20">
-          <h2 className="text-red-400 text-3xl font-bold mb-6">
-            Yeni Anı Ekle ❤️
+        <div className="mt-12 rounded-3xl border border-red-500 bg-red-950/30 p-8">
+          <h2 className="mb-6 text-3xl font-black text-red-400">
+            Yeni Anı ❤️
           </h2>
 
           <input
             value={baslik}
             onChange={(e) => setBaslik(e.target.value)}
-            placeholder="Anı başlığı"
-            className="w-full mb-4 p-4 rounded-xl bg-black border border-red-500 text-white outline-none"
+            placeholder="Başlık"
+            className="mb-4 w-full rounded-xl border border-red-500 bg-black p-4 outline-none"
           />
 
           <textarea
             value={aciklama}
             onChange={(e) => setAciklama(e.target.value)}
-            placeholder="Bu anıyı yaz..."
-            className="w-full h-32 mb-4 p-4 rounded-xl bg-black border border-red-500 text-white outline-none"
+            placeholder="Anı yaz..."
+            className="h-36 w-full rounded-xl border border-red-500 bg-black p-4 outline-none"
           />
 
           <button
             onClick={addAni}
-            className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-2xl text-xl font-semibold"
+            className="mt-4 rounded-xl bg-red-600 px-8 py-4 font-bold hover:bg-red-700"
           >
             Anıyı Kaydet
           </button>
         </div>
 
-        <div className="mt-16">
-          <h2 className="text-red-400 text-3xl font-bold mb-8">Anılarımız</h2>
+        <div className="mt-12">
+          <h2 className="mb-8 text-4xl font-black text-red-400">
+            Anılarımız ❤️
+          </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
             {anilar.map((ani) => (
               <div
                 key={ani.id}
-                className="border border-red-500 rounded-3xl p-6 bg-red-950/20"
+                className="rounded-3xl border border-red-500 bg-red-950/30 p-6"
               >
-                <h3 className="text-red-300 text-2xl font-bold">
+                <h3 className="text-2xl font-bold text-red-300">
                   {ani.baslik}
                 </h3>
-                <p className="mt-4 text-gray-200">{ani.aciklama}</p>
-                <p className="mt-4 text-sm text-gray-500">{ani.user_email}</p>
+
+                <p className="mt-4">{ani.aciklama}</p>
 
                 <button
                   onClick={() => deleteAni(ani)}
-                  className="mt-4 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl"
+                  className="mt-4 rounded-xl bg-red-600 px-4 py-2 hover:bg-red-700"
                 >
-                  Anıyı Sil 🗑
+                  Anıyı Sil
                 </button>
               </div>
             ))}
@@ -620,35 +548,35 @@ export default function Home() {
         </div>
 
         {isAdmin && (
-          <div className="mt-20 border-2 border-yellow-500 rounded-3xl p-8 bg-yellow-950/20">
-            <h2 className="text-yellow-400 text-4xl font-bold mb-8">
+          <div className="mt-16 rounded-3xl border-2 border-yellow-500 bg-yellow-950/20 p-8">
+            <h2 className="mb-8 text-4xl font-black text-yellow-400">
               Admin Paneli 👑 Silinenler
             </h2>
 
-            <h3 className="text-yellow-300 text-2xl font-bold mb-6">
+            <h3 className="mb-5 text-2xl font-bold text-yellow-300">
               Silinen Fotoğraflar
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
               {silinenFotograflar.map((foto) => (
                 <div
                   key={foto.id}
-                  className="border border-yellow-500 rounded-3xl overflow-hidden bg-black/40"
+                  className="overflow-hidden rounded-3xl border border-yellow-500 bg-black/40"
                 >
                   <img
                     src={foto.image_url}
-                    className="w-full h-[300px] object-cover opacity-60"
+                    className="h-[280px] w-full object-cover opacity-60"
                   />
 
                   <div className="p-5 text-left">
                     <p>{foto.aciklama}</p>
-                    <p className="mt-2 text-sm text-gray-500">
+                    <p className="mt-2 text-sm text-gray-400">
                       Silen: {foto.deleted_by}
                     </p>
 
                     <button
                       onClick={() => geriYukleFoto(foto)}
-                      className="mt-4 bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-xl"
+                      className="mt-4 rounded-xl bg-yellow-600 px-4 py-2 hover:bg-yellow-700"
                     >
                       Geri Yükle
                     </button>
@@ -657,7 +585,7 @@ export default function Home() {
               ))}
             </div>
 
-            <h3 className="text-yellow-300 text-2xl font-bold mb-6">
+            <h3 className="mb-5 text-2xl font-bold text-yellow-300">
               Silinen Anılar
             </h3>
 
@@ -665,19 +593,21 @@ export default function Home() {
               {silinenAnilar.map((ani) => (
                 <div
                   key={ani.id}
-                  className="border border-yellow-500 rounded-3xl p-6 bg-black/40"
+                  className="rounded-3xl border border-yellow-500 bg-black/40 p-6"
                 >
-                  <h4 className="text-yellow-300 text-2xl font-bold">
+                  <h4 className="text-2xl font-bold text-yellow-300">
                     {ani.baslik}
                   </h4>
+
                   <p className="mt-4">{ani.aciklama}</p>
-                  <p className="mt-4 text-sm text-gray-500">
+
+                  <p className="mt-4 text-sm text-gray-400">
                     Silen: {ani.deleted_by}
                   </p>
 
                   <button
                     onClick={() => geriYukleAni(ani)}
-                    className="mt-4 bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-xl"
+                    className="mt-4 rounded-xl bg-yellow-600 px-4 py-2 hover:bg-yellow-700"
                   >
                     Geri Yükle
                   </button>
@@ -688,5 +618,40 @@ export default function Home() {
         )}
       </section>
     </main>
+  );
+}
+
+function Background({ hearts }: { hearts: any[] }) {
+  return (
+    <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+      <div className="absolute left-1/2 top-[-180px] h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-red-600/25 blur-[160px]" />
+      <div className="absolute bottom-[-200px] right-[-120px] h-[460px] w-[460px] rounded-full bg-red-800/20 blur-[150px]" />
+
+      {hearts.map((_, i) => (
+        <span
+          key={i}
+          className="absolute heart-float text-red-500/40"
+          style={{
+            left: `${(i * 37) % 100}%`,
+            fontSize: `${14 + ((i * 7) % 28)}px`,
+            animationDuration: `${7 + ((i * 3) % 10)}s`,
+            animationDelay: `${(i % 8) * 0.7}s`,
+          }}
+        >
+          ❤️
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function TimeCard({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="rounded-2xl border border-red-500/70 bg-black/40 p-6">
+      <div className="text-4xl md:text-6xl font-black text-red-400">
+        {value}
+      </div>
+      <div className="mt-2 text-lg md:text-xl text-gray-200">{label}</div>
+    </div>
   );
 }
